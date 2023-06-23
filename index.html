@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Excel to Text Converter</title>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <input type="file" id="fileInput" accept=".xlsx, .xls" />
+  <div id="output"></div>
+
+  <script>
+    function processExcel(file) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: 'array' });
+        var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        var orders = {};
+
+        // Grouping orders based on order ID
+        for (var i = 1; i < jsonData.length - 1; i++) {
+          var orderID = jsonData[i][1];
+          if (!orders.hasOwnProperty(orderID)) {
+            orders[orderID] = {
+              items: [],
+              subtotal: jsonData[i][161],
+              deliveryOption: jsonData[i][6],
+              deliveryFee: jsonData[i][7],
+              total: jsonData[i][162],
+              name: jsonData[i][3],
+              phoneNo: jsonData[i][4],
+              notes: jsonData[i][5],
+              address: jsonData[i][164]
+              
+              
+            };
+          }
+
+          // Extracting menu names and quantities
+          for (var j = 9; j < jsonData[i].length - 58; j++) {
+            var menuName = jsonData[0][j];
+            var quantity = jsonData[i][j];
+            var price = jsonData[jsonData.length -1][j];
+            if (quantity) {
+              orders[orderID].items.push({
+                menuName: menuName,
+                quantity: quantity,
+                price: price
+              });
+            }
+          }
+        }
+
+        var outputText = '';
+
+        // Processing each order
+        for (var orderID in orders) {
+          if (orders.hasOwnProperty(orderID)) {
+            var order = orders[orderID];
+
+            outputText += 'e-Receipt: [https://mariorder.orderla.my/order/' + orderID + ']\n\n';
+            outputText += 'Hi. I want to order:\n\n';
+
+            // Looping through the menu items
+            for (var k = 0; k < order.items.length; k++) {
+              var item = order.items[k];
+              var indexOfDash = item.menuName.lastIndexOf("- ");
+              if (indexOfDash !== -1) {
+                var trimmedMenuName = item.menuName.substring(indexOfDash + 2); // Adding 2 to exclude the "- " characters
+                outputText += trimmedMenuName + ' (RM ' + item.price.toFixed(2) + ' x ' + item.quantity + ') = RM '+ (item.price.toFixed(2)*item.quantity).toFixed(2) + '\n';
+              } else {
+                outputText += item.menuName + ' (RM ' + item.price.toFixed(2) + ' x ' + item.quantity + ') = RM '+ (item.price.toFixed(2)*item.quantity).toFixed(2) + '\n';
+              }
+            }
+
+            outputText += '\nSubtotal: RM ' + order.subtotal.toFixed(2) + '\n\n';
+            outputText += 'Delivery: ' + order.deliveryOption + '\n';
+            outputText += 'Delivery Fee: RM ' + order.deliveryFee.toFixed(2) + '\n\n';
+            outputText += 'Total: RM ' + order.total.toFixed(2) + '\n\n';
+            outputText += 'Name: ' + order.name + '\n';
+            outputText += 'Phone Number: ' + order.phoneNo + '\n';
+            if (order.notes == undefined)
+            outputText += 'Notes: \n';
+
+            else
+            outputText += 'Notes: ' + order.notes + '\n';
+            outputText += 'Address: ' + order.address.substr(21) + '\n';
+
+            outputText += '------------------------------------------';
+            outputText += '\n\n';
+          }
+        }
+
+        document.getElementById('output').innerText = outputText;
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (file) {
+        processExcel(file);
+      }
+    });
+  </script>
+</body>
+</html>
